@@ -7,7 +7,7 @@
 <title>Movimentações Financeiras</title>
 
 <!-- MSAL Browser LOCAL -->
-<script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=yOKv__I9kXrbo9SGJDsPjIATC1RyiuWio4ymMIDu47RDdLLY9m5ITm-cBDpPwQU9-pP8yB_0Mm6vjHP6BcuGJKtp5lV5Cap2kHwJ1ClLfLKqfshXB4D8pjY3VftyxFM4GkrCeq2BxKgRb3Uv1O8OEQ-amzPA1eZBn6yNqOW96D9NDypb4vXKFbIblOV1bTTX7aGF6ssWG4KUo_kgP3w-69JhxeO8FY9SikNsk9UMeawP-BIyoCgawNyOsH_DJ4IsjDq8IVSKjq8tE2rPAS7YKc4ZTEufs--p1M0frVUMW3Ss4As84-mkyh_vRa8Yml_1GejD1dX4KyZIRaaSe0oB8Q" charset="UTF-8"></script><link rel="stylesheet" crossorigin="anonymous" href="https://gc.kis.v2.scr.kaspersky-labs.com/E3E8934C-235A-4B0E-825A-35A08381A191/abn/main.css?attr=aHR0cHM6Ly9jaGF0Z3B0LmNvbS9iYWNrZW5kLWFwaS9lc3R1YXJ5L2NvbnRlbnQ_aWQ9ZmlsZV8wMDAwMDAwMGZjY2M4MjBlYjc5ZmZmNzllZTI2Y2Y0MCZmbj1hcHAtbW92aW1lbnRhY29lcy1maW5hbmNlaXJhcy12MjYuaHRtbCZjZD1hdHRhY2htZW50JnRzPTQ5Njk3MCZwPWZzJmNpZD0xJnNpZz1hZjVlMDE5ZjE5ZmEyYmY4Nzg5OTY2NmQ4NDIyNDI0MjQzMTg2MjJjYmZkZWY3NTA0ZWE4MzIxMmJkNGRiNGNlJnY9MA"/><script src="js/msal-browser.min.js"></script>
+<script src="js/msal-browser.min.js"></script>
 
 <style>
   :root{
@@ -510,6 +510,34 @@ body.printing-selected > #printArea { display: block !important; }
     font-size: 8px;
   }
 }
+
+  .financial-summary{margin-bottom:16px;}
+  .financial-summary-header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
+  .financial-summary-header h2{margin:0;font-size:18px;}
+  .summary-periods{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;}
+  .summary-panel{border:1px solid var(--border);border-radius:10px;padding:14px;background:var(--bg);}
+  .summary-panel h3{margin:0 0 10px;font-size:14px;}
+  .summary-panel .summary-select{margin-bottom:12px;}
+  .summary-table{width:100%;min-width:0;border-collapse:collapse;font-size:13px;}
+  .summary-table th,.summary-table td{padding:7px 4px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  .summary-table th{font-size:11px;color:var(--text-2);font-weight:600;}
+  .summary-table td.num,.summary-table th.num{text-align:right;}
+  .summary-table tr:last-child td{font-weight:700;border-bottom:0;}
+  .summary-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;}
+  .summary-kpi{border:1px solid var(--border);border-radius:10px;padding:14px;background:var(--bg);}
+  .summary-kpi .label{font-size:12px;color:var(--text-2);margin-bottom:6px;}
+  .summary-kpi .value{font-size:20px;font-weight:700;}
+  .summary-kpi .sub{font-size:11px;color:var(--text-muted);margin-top:4px;}
+  .summary-fixed-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px;}
+  .summary-fixed-grid input{font-size:13px;}
+  .summary-total-box{margin-top:10px;padding:10px;border-radius:8px;background:var(--card);border:1px solid var(--border);font-weight:700;}
+  .movements-total{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin:10px 0 8px;font-size:14px;}
+  .movements-total strong{font-size:16px;}
+  .summary-positive{color:#16803c;}
+  .summary-negative{color:#c62828;}
+  .summary-neutral{color:var(--text);}
+  @media(max-width:900px){.summary-periods,.summary-kpis,.summary-fixed-grid{grid-template-columns:1fr}.financial-summary-header{align-items:flex-start}}
+
 </style>
 </head>
 
@@ -632,6 +660,81 @@ body.printing-selected > #printArea { display: block !important; }
 
       </div>
 
+
+
+      <div class="card financial-summary" id="financialSummary">
+        <div class="financial-summary-header">
+          <h2>Resumo Financeiro</h2>
+          <button type="button" id="refreshSummaryBtn">Atualizar Resumo</button>
+        </div>
+
+        <div class="summary-kpis">
+          <div class="summary-kpi">
+            <div class="label">Resultado Líquido — Competência</div>
+            <div class="value" id="summaryMonthBalance">R$ 0,00</div>
+            <div class="sub" id="summaryMonthLabel">—</div>
+          </div>
+          <div class="summary-kpi">
+            <div class="label">Resultado Líquido — Acumulado</div>
+            <div class="value" id="summaryAccBalance">R$ 0,00</div>
+            <div class="sub" id="summaryAccLabel">—</div>
+          </div>
+          <div class="summary-kpi">
+            <div class="label">Total Pendente</div>
+            <div class="value" id="summaryTotalPending">R$ 0,00</div>
+            <div class="sub">Todos os lançamentos com Status Pendente</div>
+          </div>
+        </div>
+
+        <div class="summary-periods">
+          <div class="summary-panel">
+            <h3>Resultado Financeiro</h3>
+            <label for="summaryFinancialCompetency">Competência Financeira</label>
+            <input type="month" id="summaryFinancialCompetency" class="summary-select">
+            <table class="summary-table">
+              <thead><tr><th></th><th class="num">Competência</th><th class="num">Acumulado</th></tr></thead>
+              <tbody>
+                <tr><td>Entradas</td><td class="num" id="summaryRevenueMonth">R$ 0,00</td><td class="num" id="summaryRevenueAcc">R$ 0,00</td></tr>
+                <tr><td>Saídas</td><td class="num" id="summaryExpenseMonth">R$ 0,00</td><td class="num" id="summaryExpenseAcc">R$ 0,00</td></tr>
+                <tr><td>Saldo Líquido</td><td class="num" id="summaryBalanceMonth">R$ 0,00</td><td class="num" id="summaryBalanceAcc">R$ 0,00</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="summary-panel">
+            <h3>Saldo Bancário / Contas</h3>
+            <label for="summaryBankCompetency">Competência Bancária</label>
+            <input type="month" id="summaryBankCompetency" class="summary-select">
+            <table class="summary-table">
+              <thead><tr><th>Conta</th><th class="num">Mês</th><th class="num">Acumulado</th></tr></thead>
+              <tbody id="summaryAccountsBody"></tbody>
+            </table>
+          </div>
+
+          <div class="summary-panel">
+            <h3>Saldo dos Cartões</h3>
+            <label for="summaryCardCompetency">Competência da Fatura</label>
+            <input type="month" id="summaryCardCompetency" class="summary-select">
+            <table class="summary-table">
+              <thead><tr><th>Cartão</th><th class="num">Competência</th><th class="num">Pendente</th></tr></thead>
+              <tbody id="summaryCardsBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="summary-panel">
+          <h3>Saldo Pendente</h3>
+          <table class="summary-table">
+            <tbody>
+              <tr><td>Total Pendente</td><td class="num" id="summaryPendingTotal2">R$ 0,00</td></tr>
+              <tr><td>Condomínio</td><td class="num"><input type="number" step="0.01" id="summaryFixedCondo" value="0"></td></tr>
+              <tr><td>Fatura Claro</td><td class="num"><input type="number" step="0.01" id="summaryFixedClaro" value="0"></td></tr>
+              <tr><td>Outros</td><td class="num"><input type="number" step="0.01" id="summaryFixedOther" value="0"></td></tr>
+            </tbody>
+          </table>
+          <div class="summary-total-box">Pendente Mensal: <span id="summaryMonthlyPending">R$ 0,00</span></div>
+        </div>
+      </div>
 
       <form id="movForm">
 
@@ -981,6 +1084,8 @@ body.printing-selected > #printArea { display: block !important; }
   </div>
   <div id="bulkStatusInfo" class="search-info"></div>
 </div>
+
+      <div class="movements-total"><span>Total das Movimentações (filtro atual):</span><strong id="filteredMovementsTotal">R$ 0,00</strong></div>
 
       <div class="table-scroll table-scroll-top" id="tableScrollTop" aria-label="Rolagem horizontal superior da lista">
         <div class="table-scroll-spacer" id="tableScrollTopSpacer"></div>
@@ -2107,6 +2212,10 @@ async function loadRows(){
     console.log('Registros carregados:', rowsCache);
 
     applySearch();
+    // Os seletores de competência são campos nativos <input type="month">.
+    // Não é necessário preenchê-los com uma lista de opções.
+    summarySetFixed();
+    summaryRefresh();
 
     showStatus(
       rowsCache.length +
@@ -2269,6 +2378,7 @@ function renderTable(data = rowsCache){
     .forEach(b => b.addEventListener('click', onDelete));
 
   syncHorizontalScrollbars();
+  updateFilteredMovementsTotal(data);
 
 }
 function getSelectedRowIndexes(){
@@ -2403,6 +2513,151 @@ function exportSelectedRows(){
   if(info){
     info.textContent = `${selectedRows.length} ${selectedRows.length === 1 ? 'registro exportado' : 'registros exportados'} em CSV.`;
   }
+}
+
+
+/* =========================================================
+   RESUMO FINANCEIRO V29
+   ========================================================= */
+function summaryMoney(value){
+  let n=Number(value)||0;
+  // Elimina resíduos de ponto flutuante que poderiam aparecer como -R$ 0,00.
+  // Para valores monetários exibidos com duas casas, qualquer valor absoluto
+  // menor que meio centavo deve ser tratado como zero.
+  if(Math.abs(n)<0.005) n=0;
+  return n.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+}
+function summaryMoneyHtml(value){
+  return `<span class="${summaryColorClass(value)}">${summaryMoney(value)}</span>`;
+}
+function summaryMonthKey(value){
+  const s=excelDateToInput(value);
+  return s ? s.slice(0,7) : '';
+}
+function summaryMonthLabel(key){
+  if(!key) return '—';
+  const [y,m]=key.split('-');
+  const names=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  return `${names[Number(m)-1]}-${String(y).slice(-2)}`;
+}
+function summaryMonthOptions(){
+  return [...new Set(rowsCache.map(r=>summaryMonthKey(r.values?.[2])).filter(Boolean))].sort();
+}
+function summaryDefaultMonth(){
+  return summaryMonthOptions().at(-1) || '';
+}
+function setSummaryMonthInput(id, selected){
+  const el=document.getElementById(id);
+  if(!el) return;
+  const key=selected || el.value || summaryDefaultMonth();
+  el.value=key;
+}
+function summaryColorClass(value){
+  const n=Number(value)||0;
+  return n>0 ? 'summary-positive' : n<0 ? 'summary-negative' : 'summary-neutral';
+}
+function setSummaryMoney(id, value){
+  const el=document.getElementById(id);
+  if(!el) return;
+  el.textContent=summaryMoney(value);
+  el.classList.remove('summary-positive','summary-negative','summary-neutral');
+  el.classList.add(summaryColorClass(value));
+}
+function summaryFixedLoad(){
+  try{return JSON.parse(localStorage.getItem('movFinResumoFixos')||'{}')}catch(e){return {}}
+}
+function summaryFixedSave(){
+  const data={condo:Number(document.getElementById('summaryFixedCondo')?.value)||0,claro:Number(document.getElementById('summaryFixedClaro')?.value)||0,other:Number(document.getElementById('summaryFixedOther')?.value)||0};
+  localStorage.setItem('movFinResumoFixos',JSON.stringify(data));
+}
+function summarySetFixed(){
+  const d=summaryFixedLoad();
+  ['Condo','Claro','Other'].forEach(k=>{const el=document.getElementById('summaryFixed'+k); if(el) el.value=Number(d[k.toLowerCase()]||0).toFixed(2);});
+}
+function summaryCalcFinancial(key){
+  let mr=0, me=0, ar=0, ae=0;
+  for(const r of rowsCache){
+    const type=String(r.values?.[10]??'').trim().toLowerCase();
+    const v=Number(r.values?.[9])||0;
+    const rk=summaryMonthKey(r.values?.[2]);
+
+    // Replica exatamente a lógica da planilha:
+    // Entradas = SOMASE(Tipo_Movimentacao;"Receita";Valor)
+    // Saídas   = -SOMASE(Tipo_Movimentacao;"Despesa";Valor)
+    // Portanto, não usamos ABS(): o sinal gravado em Valor é preservado
+    // antes da inversão aplicada ao total das Despesas.
+    if(type==='receita'){
+      ar += v;
+      if(rk===key) mr += v;
+    }else if(type==='despesa'){
+      // As Despesas já são gravadas com sinal negativo na planilha.
+      // Portanto, basta somar o Valor, exatamente como:
+      // SOMASE(K:K;"Despesa";J:J)
+      ae += v;
+      if(rk===key) me += v;
+    }
+  }
+
+  return {
+    mr,
+    me,
+    mb:mr+me,
+    ar,
+    ae,
+    ab:ar+ae
+  };
+}
+function summaryCalcAccounts(key){
+  const body=document.getElementById('summaryAccountsBody'); if(!body)return;
+  body.innerHTML='';
+  const accounts=(dimensions.contas||[]);
+  let totalM=0,totalA=0;
+  accounts.forEach(a=>{
+    const id=String(a.id).trim(); let m=0,acc=0;
+    rowsCache.forEach(r=>{if(String(r.values?.[16]??'').trim()!==id)return;const v=Number(r.values?.[9])||0;const rk=summaryMonthKey(r.values?.[2]);if(rk===key)m+=v;if(!key||rk<=key)acc+=v;});
+    totalM+=m;totalA+=acc;
+    const tr=document.createElement('tr');tr.innerHTML=`<td>${escapeHtml(a.name||a.id)}</td><td class="num">${summaryMoneyHtml(m)}</td><td class="num">${summaryMoneyHtml(acc)}</td>`;body.appendChild(tr);
+  });
+  const tr=document.createElement('tr');tr.innerHTML=`<td>Total</td><td class="num">${summaryMoneyHtml(totalM)}</td><td class="num">${summaryMoneyHtml(totalA)}</td>`;body.appendChild(tr);
+}
+function summaryCalcCards(key){
+  const body=document.getElementById('summaryCardsBody'); if(!body)return;
+  body.innerHTML=''; const cards=dimensions.cartoes||[]; let tm=0,tp=0;
+  cards.forEach(c=>{const id=String(c.id).trim();let m=0,p=0;rowsCache.forEach(r=>{if(String(r.values?.[14]??'').trim()!==id)return;const v=Number(r.values?.[9])||0;const rk=summaryMonthKey(r.values?.[2]);if(rk===key)m+=v;if(String(r.values?.[11]??'').trim()==='Pendente')p+=v;});tm+=m;tp+=p;const tr=document.createElement('tr');tr.innerHTML=`<td>${escapeHtml(c.name||c.id)}</td><td class="num">${summaryMoneyHtml(m)}</td><td class="num">${summaryMoneyHtml(p)}</td>`;body.appendChild(tr);});
+  const tr=document.createElement('tr');tr.innerHTML=`<td>Total</td><td class="num">${summaryMoneyHtml(tm)}</td><td class="num">${summaryMoneyHtml(tp)}</td>`;body.appendChild(tr);
+  return tm;
+}
+function summaryRefresh(){
+  if(!rowsCache.length)return;
+  const f=document.getElementById('summaryFinancialCompetency');const b=document.getElementById('summaryBankCompetency');const c=document.getElementById('summaryCardCompetency');
+  const fk=f?.value||summaryDefaultMonth(); const bk=b?.value||fk; const ck=c?.value||fk;
+  setSummaryMonthInput('summaryFinancialCompetency',fk);
+  setSummaryMonthInput('summaryBankCompetency',bk);
+  setSummaryMonthInput('summaryCardCompetency',ck);
+  const s=summaryCalcFinancial(fk);
+  setSummaryMoney('summaryRevenueMonth',s.mr);
+  setSummaryMoney('summaryExpenseMonth',s.me);
+  setSummaryMoney('summaryBalanceMonth',s.mb);
+  setSummaryMoney('summaryRevenueAcc',s.ar);
+  setSummaryMoney('summaryExpenseAcc',s.ae);
+  setSummaryMoney('summaryBalanceAcc',s.ab);
+  setSummaryMoney('summaryMonthBalance',s.mb);
+  document.getElementById('summaryMonthLabel').textContent=summaryMonthLabel(fk);
+  setSummaryMoney('summaryAccBalance',s.ab);
+  document.getElementById('summaryAccLabel').textContent='Até '+summaryMonthLabel(fk);
+  summaryCalcAccounts(bk); const cardMonthTotal=summaryCalcCards(ck);
+  let pending=0;rowsCache.forEach(r=>{if(String(r.values?.[11]??'').trim()==='Pendente')pending+=Number(r.values?.[9])||0;});
+  setSummaryMoney('summaryTotalPending',pending);
+  setSummaryMoney('summaryPendingTotal2',pending);
+  const fix=summaryFixedLoad();const monthly=Number(fix.condo||0)+Number(fix.claro||0)+Number(fix.other||0)+cardMonthTotal;
+  setSummaryMoney('summaryMonthlyPending',monthly);
+}
+function updateFilteredMovementsTotal(data){
+  const el=document.getElementById('filteredMovementsTotal');if(!el)return;
+  const total=(data||[]).reduce((s,r)=>s+(Number(r.values?.[9])||0),0);
+  el.textContent=summaryMoney(total);
+  el.classList.remove('summary-positive','summary-negative','summary-neutral');
+  el.classList.add(summaryColorClass(total));
 }
 
 function escapeHtml(value){
@@ -2766,6 +3021,7 @@ function applyFilters(){
   });
 
   renderTable(filtered);
+  updateFilteredMovementsTotal(filtered);
 
   const activeFilters = [
     dataInicial, dataFinal, competencia, tipo, status, categoria,
@@ -3841,6 +4097,14 @@ document
     'click',
     loadRows
   );
+
+document.getElementById('refreshSummaryBtn')?.addEventListener('click', loadRows);
+document.getElementById('summaryFinancialCompetency')?.addEventListener('change', summaryRefresh);
+document.getElementById('summaryBankCompetency')?.addEventListener('change', summaryRefresh);
+document.getElementById('summaryCardCompetency')?.addEventListener('change', summaryRefresh);
+['summaryFixedCondo','summaryFixedClaro','summaryFixedOther'].forEach(id=>document.getElementById(id)?.addEventListener('change',()=>{summaryFixedSave();summaryRefresh();}));
+summarySetFixed();
+
 
 
 /* =========================================================
