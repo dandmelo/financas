@@ -538,6 +538,37 @@ body.printing-selected > #printArea { display: block !important; }
   .summary-neutral{color:var(--text);}
   @media(max-width:900px){.summary-periods,.summary-kpis,.summary-fixed-grid{grid-template-columns:1fr}.financial-summary-header{align-items:flex-start}}
 
+
+/* ===== V30 - Responsive Mobile Layout ===== */
+@media (max-width: 768px) {
+  body { font-size: 14px; }
+  .container, .app-container, main { width: 100% !important; max-width: 100% !important; padding-left: 10px !important; padding-right: 10px !important; box-sizing: border-box; }
+  .card, .panel, section { max-width: 100%; box-sizing: border-box; }
+  h1 { font-size: 22px !important; line-height: 1.2; }
+  h2 { font-size: 18px !important; }
+  h3 { font-size: 16px !important; }
+  input, select, textarea, button { font-size: 16px !important; min-height: 42px; box-sizing: border-box; }
+  button { padding: 9px 12px !important; }
+  .summary-grid { grid-template-columns: 1fr !important; }
+  .summary-table, .summary-card, .summary-section { width: 100% !important; box-sizing: border-box; }
+  .summary-table { font-size: 13px; }
+  .summary-table th, .summary-table td { padding: 8px 6px !important; white-space: nowrap; }
+  .filters-grid, .form-grid, .grid { grid-template-columns: 1fr !important; }
+  .actions, .button-row { display: flex !important; flex-wrap: wrap; gap: 8px; }
+  .actions button, .button-row button { flex: 1 1 140px; }
+  .table-area, .table-scroll, .table-wrapper { max-width: 100% !important; overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+  table { font-size: 12px; }
+  th, td { padding: 7px 6px !important; }
+  .topbar, header { flex-wrap: wrap; gap: 8px; }
+  .topbar > *, header > * { max-width: 100%; }
+  .form-row { flex-direction: column !important; align-items: stretch !important; }
+  .field, .form-group { width: 100% !important; min-width: 0 !important; }
+  .modal-content { width: calc(100% - 20px) !important; max-width: none !important; margin: 10px !important; }
+}
+
+@media (min-width: 769px) {
+  .mobile-only { display: none !important; }
+}
 </style>
 </head>
 
@@ -2544,7 +2575,12 @@ function summaryMonthOptions(){
   return [...new Set(rowsCache.map(r=>summaryMonthKey(r.values?.[2])).filter(Boolean))].sort();
 }
 function summaryDefaultMonth(){
-  return summaryMonthOptions().at(-1) || '';
+  // Ao abrir/carregar os registros, inicia na competência do mês/ano atual.
+  // A escolha feita pelo usuário depois disso é preservada pelo summaryRefresh().
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
 }
 function setSummaryMonthInput(id, selected){
   const el=document.getElementById(id);
