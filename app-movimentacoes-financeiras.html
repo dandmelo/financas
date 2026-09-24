@@ -329,11 +329,34 @@
       background: var(--mode-bg);
       color: var(--mode-text);
     }
-    .mode-options { display:flex; gap:18px; flex-wrap:wrap; align-items:center; }
+    .mode-options {
+      display:grid;
+      grid-template-columns:minmax(190px,auto) minmax(180px,1fr) minmax(210px,1.2fr);
+      gap:12px 18px;
+      align-items:center;
+    }
     .mode-options > span,
     .mode-options label,
     .mode-box label { color: var(--mode-text); }
-    .mode-options label { display:flex; align-items:center; gap:7px; font-weight:600; cursor:pointer; }
+    .mode-options > span { min-width:0; }
+    .mode-options label {
+      display:flex;
+      align-items:center;
+      gap:8px;
+      min-width:0;
+      margin:0;
+      font-weight:600;
+      cursor:pointer;
+      line-height:1.25;
+    }
+    .mode-options label input[type="radio"] {
+      flex:0 0 auto;
+      width:20px;
+      height:20px;
+      min-width:20px;
+      min-height:20px;
+      margin:0;
+    }
     .mode-box input[type="number"] {
       background: var(--card);
       color: var(--text);
@@ -538,6 +561,39 @@ body.printing-selected > #printArea { display: block !important; }
   .summary-neutral{color:var(--text);}
   @media(max-width:900px){.summary-periods,.summary-kpis,.summary-fixed-grid{grid-template-columns:1fr}.financial-summary-header{align-items:flex-start}}
 
+
+/* ===== V32 - Responsive Mode Options ===== */
+@media (max-width: 900px) {
+  .mode-box {
+    padding: 12px;
+  }
+  .mode-options {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 14px;
+  }
+  .mode-options > span {
+    grid-column: 1 / -1;
+  }
+  .mode-options label {
+    min-height: 42px;
+    padding: 8px 10px;
+    border: 1px solid rgba(255,255,255,.22);
+    border-radius: 8px;
+    background: rgba(255,255,255,.06);
+  }
+}
+
+@media (max-width: 560px) {
+  .mode-options {
+    grid-template-columns: 1fr;
+  }
+  .mode-options > span {
+    grid-column: auto;
+  }
+  .mode-options label {
+    width: 100%;
+  }
+}
 
 /* ===== V30 - Responsive Mobile Layout ===== */
 @media (max-width: 768px) {
