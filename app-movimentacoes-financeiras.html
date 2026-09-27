@@ -3503,11 +3503,30 @@ document.addEventListener('keydown',e=>{
 });
 
 async function deleteTableRow(index, tableName){
+  const safeIndex = Number(index);
+
+  if(!Number.isInteger(safeIndex) || safeIndex < 0){
+    throw new Error('Índice da linha para exclusão inválido.');
+  }
+
+  const encodedTable = encodeURIComponent(tableName);
+
+  // Não usamos DELETE estrutural da linha. No arquivo atual, o Excel
+  // retorna InsertDeleteConflict ao tentar deslocar células da tabela.
+  // Em vez disso, limpamos os valores da linha mantendo a estrutura da tabela.
+  // O loadRows() já ignora linhas sem ID_Movimentacao.
+  const emptyValues = [new Array(FIELDS.length).fill('')];
+
   await graphFetch(
     "/me/drive/items/" + fileId +
-    "/workbook/tables('" + encodeURIComponent(tableName) +
-    "')/rows/itemAt(index=" + index + ")",
-    {method:'DELETE'}
+    "/workbook/tables('" + encodedTable +
+    "')/rows/itemAt(index=" + safeIndex + ")",
+    {
+      method:'PATCH',
+      body:JSON.stringify({
+        values: emptyValues
+      })
+    }
   );
 }
 
