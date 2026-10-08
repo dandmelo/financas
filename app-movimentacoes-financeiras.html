@@ -1167,6 +1167,7 @@ body.printing-selected > #printArea { display: block !important; }
       <button type="button" id="exportSelectedRowsBtn" class="secondary" disabled>Exportar Selecionados</button>
       <button type="button" id="printSelectedRowsBtn" class="secondary" disabled>Imprimir Selecionados</button>
       <button type="button" id="applyBulkStatusBtn" class="btn-primary" disabled>Alterar Status</button>
+      <button type="button" id="deleteSelectedRowsBtn" class="btn-danger" disabled>Excluir Selecionados</button>
     </div>
   </div>
   <div id="bulkStatusInfo" class="search-info"></div>
@@ -1930,6 +1931,7 @@ async function graphFetch(path, options = {}){
           'Content-Type':
             'application/json',
 
+          ...(options.cacheControl ? { 'Cache-Control': options.cacheControl } : {}),
           ...(options.headers || {})
 
         }
@@ -2175,6 +2177,17 @@ async function loadDimensions(){
     .map(r => ({ id: String(r.values[0]).trim(), name: String(r.values[1] ?? '').trim() }))
     .filter(x => x.name !== '');
 
+  // Mantém todas as listas de dimensão em ordem alfabética crescente.
+  // Isso vale tanto para os campos do lançamento quanto para os filtros.
+  const sortByName = (a, b) =>
+    String(a.name ?? '').localeCompare(String(b.name ?? ''), 'pt-BR', { sensitivity:'base' });
+
+  dimensions.categorias.sort(sortByName);
+  dimensions.subcategorias.sort(sortByName);
+  dimensions.cartoes.sort(sortByName);
+  dimensions.contas.sort(sortByName);
+  dimensions.formasPgto.sort(sortByName);
+
   fillSelect('f_ID_Categoria', dimensions.categorias, 'Selecione a categoria');
   fillSelect('f_ID_Cartao_FK', dimensions.cartoes, 'Selecione o cartão');
   fillSelect('f_ID_Conta_FK', dimensions.contas, 'Selecione a conta');
@@ -2238,6 +2251,38 @@ function calculateParcelId(movementId){
   return movementId + '-' + String(count + 1).padStart(2, '0');
 }
 
+async function refreshAfterNewLaunch(movementId){
+  // O Excel/Graph pode levar alguns instantes para refletir uma nova linha
+  // em uma leitura subsequente. Fazemos a leitura normalmente primeiro e,
+  // somente se o novo ID ainda não aparecer, repetimos com pequenas pausas.
+  const maxAttempts = 5;
+  const delays = [600, 1000, 1600, 2400];
+
+  for(let attempt = 1; attempt <= maxAttempts; attempt++){
+    const refreshed = await loadRows();
+
+    if(refreshed !== false){
+      const found = rowsCache.some(row =>
+        String(row?.values?.[0] ?? '').trim() === String(movementId).trim()
+      );
+
+      if(found){
+        return true;
+      }
+    }
+
+    if(attempt < maxAttempts){
+      showStatus(
+        'O lançamento foi salvo. Aguardando a atualização da lista...',
+        'info'
+      );
+      await new Promise(resolve => setTimeout(resolve, delays[attempt - 1] || 1600));
+    }
+  }
+
+  return false;
+}
+
 async function loadRows(){
 
   const fileName =
@@ -2273,7 +2318,8 @@ async function loadRows(){
         encodedPath +
         ':\/workbook/tables(\'' +
         encodeURIComponent(tableName) +
-        '\')/rows'
+        '\')/rows',
+        { cacheControl: 'no-cache' }
       );
 
     // Uma linha só é considerada registro quando possui
@@ -2310,6 +2356,8 @@ async function loadRows(){
       'ok'
     );
 
+    return true;
+
   }catch(err){
 
     console.error('Erro ao carregar registros:', err);
@@ -2318,6 +2366,8 @@ async function loadRows(){
       'Erro ao carregar registros: ' + err.message,
       'err'
     );
+
+    return false;
 
   }
 
@@ -2406,6 +2456,28 @@ function syncHorizontalScrollbars(){
   bottom.scrollLeft = current;
 }
 
+function scrollMovementsListToEnd(){
+  const bottom = document.getElementById('tableScrollBottom');
+  if(!bottom) return;
+
+  // Após um novo lançamento, leva somente a rolagem vertical
+  // para o último registro. A posição horizontal é controlada
+  // separadamente e será reposicionada no início ao salvar.
+  requestAnimationFrame(() => {
+    bottom.scrollTop = bottom.scrollHeight;
+  });
+}
+
+function resetHorizontalScrollToStart(){
+  const top = document.getElementById('tableScrollTop');
+  const bottom = document.getElementById('tableScrollBottom');
+
+  requestAnimationFrame(() => {
+    if(top) top.scrollLeft = 0;
+    if(bottom) bottom.scrollLeft = 0;
+  });
+}
+
 function renderTable(data = rowsCache){
 
   const body =
@@ -2413,7 +2485,21 @@ function renderTable(data = rowsCache){
 
   body.innerHTML = '';
 
-  data.forEach(row => {
+  // A lista principal volta ao comportamento original:
+  // ordem crescente pelo ID_Movimentacao.
+  // O índice original da linha é preservado para editar/excluir
+  // o registro correto mesmo quando a lista está filtrada.
+  const sortedData = [...data].sort((a, b) => {
+    const av = a?.values || [];
+    const bv = b?.values || [];
+    return String(av[0] ?? '').localeCompare(
+      String(bv[0] ?? ''),
+      'pt-BR',
+      { numeric: true, sensitivity: 'base' }
+    );
+  });
+
+  sortedData.forEach(row => {
 
     const v = row.values;
     const tr = document.createElement('tr');
@@ -2491,6 +2577,7 @@ function updateSelectionUI(){
   const applyBtn = document.getElementById('applyBulkStatusBtn');
   const exportBtn = document.getElementById('exportSelectedRowsBtn');
   const printBtn = document.getElementById('printSelectedRowsBtn');
+  const deleteBtn = document.getElementById('deleteSelectedRowsBtn');
   const bulkStatus = document.getElementById('bulkStatus')?.value || '';
   if(applyBtn){
     applyBtn.disabled = selected === 0 || bulkStatus === '';
@@ -2500,6 +2587,9 @@ function updateSelectionUI(){
   }
   if(printBtn){
     printBtn.disabled = selected === 0;
+  }
+  if(deleteBtn){
+    deleteBtn.disabled = selected === 0;
   }
 }
 
@@ -2511,6 +2601,105 @@ function clearRowSelection(){
     selectAll.indeterminate = false;
   }
   updateSelectionUI();
+}
+
+async function deleteSelectedRows(){
+  const selectedIndexes = getSelectedRowIndexes();
+  const tableName = document.getElementById('tableName').value.trim();
+
+  if(!selectedIndexes.length){
+    showValidationModal('Selecione pelo menos um registro para excluir.', 'Nenhum registro selecionado');
+    return;
+  }
+
+  if(!tableName){
+    showStatus('Informe o nome da tabela.', 'err');
+    return;
+  }
+
+  const selectedRows = selectedIndexes
+    .map(index => rowsCache.find(row => row.index === index))
+    .filter(Boolean);
+
+  if(!selectedRows.length){
+    showValidationModal('Não foi possível localizar os registros selecionados.', 'Exclusão');
+    return;
+  }
+
+  const confirmMessage =
+    `Você selecionou ${selectedRows.length} ${selectedRows.length === 1 ? 'registro' : 'registros'}.\n\n` +
+    'Os registros selecionados serão excluídos da lista e os dados das respectivas linhas serão limpos na planilha.\n\n' +
+    'Deseja continuar?';
+
+  if(!confirm(confirmMessage)) return;
+
+  const deleteBtn = document.getElementById('deleteSelectedRowsBtn');
+  const selectAllBtn = document.getElementById('selectAllRowsBtn');
+  const clearBtn = document.getElementById('clearSelectedRowsBtn');
+  const exportBtn = document.getElementById('exportSelectedRowsBtn');
+  const printBtn = document.getElementById('printSelectedRowsBtn');
+  const bulkInfo = document.getElementById('bulkStatusInfo');
+
+  [deleteBtn, selectAllBtn, clearBtn, exportBtn, printBtn].forEach(btn => {
+    if(btn) btn.disabled = true;
+  });
+
+  // Como a exclusão é lógica e não desloca as linhas da tabela, os índices
+  // permanecem estáveis. Ordenamos apenas para facilitar o acompanhamento.
+  const indexes = [...new Set(selectedRows.map(r => Number(r.index)))]
+    .filter(Number.isInteger)
+    .sort((a,b) => b-a);
+
+  let deleted = 0;
+
+  try{
+    for(let i = 0; i < indexes.length; i++){
+      const rowIndex = indexes[i];
+      if(bulkInfo){
+        bulkInfo.textContent = `Excluindo... ${i + 1} de ${indexes.length}.`;
+      }
+      showStatus(`Excluindo registros... ${i + 1} de ${indexes.length}.`, 'info');
+
+      let success = false;
+      let lastError = null;
+      for(let attempt = 1; attempt <= 4 && !success; attempt++){
+        try{
+          await deleteTableRow(rowIndex, tableName);
+          success = true;
+        }catch(err){
+          lastError = err;
+          const msg = String(err?.message || '');
+          const transient = /Erro na API \((502|503|504)\)/i.test(msg) || /serviceUnavailable|badGateway|gatewayTimeout/i.test(msg);
+          if(!transient || attempt === 4) throw err;
+          const waitMs = Math.min(12000, 1500 * Math.pow(2, attempt - 1));
+          if(bulkInfo) bulkInfo.textContent = `Excel temporariamente ocupado. Tentando novamente em ${Math.ceil(waitMs/1000)}s...`;
+          await new Promise(resolve => setTimeout(resolve, waitMs));
+        }
+      }
+      if(!success && lastError) throw lastError;
+      deleted++;
+    }
+
+    clearRowSelection();
+    await loadRows();
+
+    if(bulkInfo){
+      bulkInfo.textContent = `${deleted} ${deleted === 1 ? 'registro excluído' : 'registros excluídos'} em lote.`;
+    }
+
+    showStatus(
+      `${deleted} ${deleted === 1 ? 'registro excluído' : 'registros excluídos'} e lista Atualizada.`,
+      'ok'
+    );
+  }catch(err){
+    console.error('Erro ao excluir registros em lote:', err);
+    clearRowSelection();
+    await loadRows();
+    showStatus(
+      `Erro ao excluir em lote. ${deleted} ${deleted === 1 ? 'registro foi excluído' : 'registros foram excluídos'} antes do erro. ${err.message}`,
+      'err'
+    );
+  }
 }
 
 function selectAllVisibleRows(){
@@ -3192,6 +3381,7 @@ document.getElementById('selectAllRows')?.addEventListener('change', e => {
 });
 document.getElementById('bulkStatus')?.addEventListener('change', updateSelectionUI);
 document.getElementById('applyBulkStatusBtn')?.addEventListener('click', applyBulkStatus);
+document.getElementById('deleteSelectedRowsBtn')?.addEventListener('click', deleteSelectedRows);
 
 applyFilters();
 
@@ -3510,24 +3700,46 @@ async function deleteTableRow(index, tableName){
   }
 
   const encodedTable = encodeURIComponent(tableName);
-
-  // Não usamos DELETE estrutural da linha. No arquivo atual, o Excel
-  // retorna InsertDeleteConflict ao tentar deslocar células da tabela.
-  // Em vez disso, limpamos os valores da linha mantendo a estrutura da tabela.
-  // O loadRows() já ignora linhas sem ID_Movimentacao.
   const emptyValues = [new Array(FIELDS.length).fill('')];
 
+  // Exclusão lógica: limpamos os 21 campos da linha sem alterar a
+  // estrutura da tabela. O Excel/Graph bloqueia a exclusão física
+  // em determinadas condições com InsertDeleteConflict.
   await graphFetch(
     "/me/drive/items/" + fileId +
-    "/workbook/tables('" + encodedTable +
-    "')/rows/itemAt(index=" + safeIndex + ")",
+    "/workbook/tables('" + encodedTable + "')/rows/itemAt(index=" + safeIndex + ")",
     {
       method:'PATCH',
-      body:JSON.stringify({
-        values: emptyValues
-      })
+      body:JSON.stringify({values: emptyValues})
     }
   );
+}
+
+async function reloadAfterDeletion(expectedRows, maxAttempts = 5){
+  const targets = Array.isArray(expectedRows) ? expectedRows : [];
+
+  for(let attempt = 1; attempt <= maxAttempts; attempt++){
+    if(attempt > 1){
+      // O Excel/Graph pode levar alguns instantes para refletir o PATCH
+      // de exclusão lógica em uma nova leitura da tabela.
+      await new Promise(resolve => setTimeout(resolve, 500 * (attempt - 1)));
+    }
+
+    await loadRows();
+
+    const stillPresent = targets.some(target =>
+      rowsCache.some(row =>
+        Number(row.index) === Number(target.index) &&
+        String(row.values?.[0] ?? '').trim() === String(target.id ?? '').trim()
+      )
+    );
+
+    if(!stillPresent){
+      return true;
+    }
+  }
+
+  return false;
 }
 
 async function onDelete(e){
@@ -3571,13 +3783,21 @@ async function onDelete(e){
       showStatus('Registro excluído.','ok');
     }
 
-    await loadRows();
+    const deletedTargets = action==='group' && hasGroup
+      ? groupRows.map(row => ({ index: row.index, id: row.values?.[0] }))
+      : [{ index: currentRow.index, id: movementId }];
+
+    const listUpdated = await reloadAfterDeletion(deletedTargets);
 
     showStatus(
       action==='group'
-        ? `Grupo ${movementId} excluído e lista Atualizada.`
-        : 'Registro Excluído e lista Atualizada.',
-      'ok'
+        ? (listUpdated
+            ? `Grupo ${movementId} excluído e lista Atualizada.`
+            : `Grupo ${movementId} excluído. A lista foi recarregada, mas o Excel ainda não refletiu a alteração; tente Atualizar Lista.`)
+        : (listUpdated
+            ? 'Registro Excluído e lista Atualizada.'
+            : 'Registro Excluído. A lista foi recarregada, mas o Excel ainda não refletiu a alteração; tente Atualizar Lista.'),
+      listUpdated ? 'ok' : 'info'
     );
 
   }catch(err){
@@ -3853,6 +4073,17 @@ document
           .getElementById('editingId')
           .value;
 
+      const isNewLaunch = editingIdx === '';
+
+      // Para um novo lançamento, recarrega a tabela imediatamente antes
+      // de gerar o ID. Isso evita usar um rowsCache desatualizado e reduz
+      // o risco de reutilizar o último ID_Movimentacao criado.
+      if(editingIdx === ''){
+        const refreshed = await loadRows();
+        if(refreshed === false){
+          throw new Error('Não foi possível atualizar a lista antes de gerar o ID da movimentação.');
+        }
+      }
 
       const movementId = editingIdx !== ''
         ? rowsCache.find(r => r.index === parseInt(editingIdx, 10)).values[0]
@@ -4175,7 +4406,32 @@ document
           'Salvar Registro';
 
 
-        await loadRows();
+        let listRefreshed = true;
+
+        if(isNewLaunch){
+          // Confirma que o novo ID já apareceu na leitura do Excel antes
+          // de considerar a lista efetivamente atualizada.
+          listRefreshed = await refreshAfterNewLaunch(movementId);
+        }else{
+          listRefreshed = await loadRows();
+        }
+
+        if(!listRefreshed){
+          showStatus(
+            'Registro salvo, mas o Excel ainda não refletiu o novo lançamento na lista. Clique em "Atualizar Lista" para sincronizar.',
+            'info'
+          );
+        }
+
+        // Após salvar, sempre reposiciona a rolagem horizontal
+        // no início (extrema esquerda).
+        resetHorizontalScrollToStart();
+
+        // Após um novo lançamento, posiciona somente a rolagem vertical
+        // no final para mostrar imediatamente os registros mais recentes.
+        if(isNewLaunch){
+          scrollMovementsListToEnd();
+        }
 
 
       }catch(err){
